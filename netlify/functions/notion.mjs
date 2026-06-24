@@ -137,7 +137,7 @@ export const handler = async (event) => {
           Notities: { rich_text: [{ text: { content: `volgorde:${volgorde || 999}` } }] },
         }
       });
-      return { statusCode: 200, headers, body: JSON.stringify({ success: true, id: data.id }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, id: data.id, notionObject: data.object, notionError: data.message }) };
     }
 
     // ── Shopping item verwijderen ──
