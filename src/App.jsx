@@ -323,13 +323,17 @@ export default function App() {
                       </div>
                       {items.length===0
                         ? <button className="add-dag" onClick={()=>setModal({type:"toevoegen_dag",dag})}>{Ico.plus} Gerecht toevoegen</button>
-                        : items.map(item=>(
+                        : items.map(item=>{
+                          const g = gerechten.find(x=>x.naam===item.gerecht);
+                          return (
                           <div key={item.id} className="gerecht-rij">
                             <span className="gerecht-rij-naam">{item.gerecht}</span>
                             <span className="gerecht-rij-pers">👥 {item.personen}</span>
+                            {g && <button className="icon-btn" onClick={()=>setModal({type:"detail",gerecht:g})}>{Ico.eye}</button>}
                             <button className="rij-del" onClick={()=>verwijderDagItem(dag,item.id)}>{Ico.del}</button>
                           </div>
-                        ))
+                          );
+                        })
                       }
                     </div>
                   );
