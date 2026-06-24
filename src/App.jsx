@@ -418,6 +418,10 @@ function ModalView({modal,gerechten,onClose,onVoegToe,busy}) {
 
   if(modal.type==="detail"){
     const g=modal.gerecht;
+    const [stappen, setStappen] = useState(null);
+    useEffect(()=>{
+      notion("getBereidingsstappen",{id:g.id}).then(d=>setStappen(d.tekst||"Niet beschikbaar."));
+    },[g.id]);
     return <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="mhandle"/>
@@ -428,6 +432,8 @@ function ModalView({modal,gerechten,onClose,onVoegToe,busy}) {
         </div>
         <div className="msec"><div className="mlabel">Ingrediënten</div>
           <div className="mtext">{g.ingredienten||"Niet beschikbaar."}</div></div>
+        <div className="msec"><div className="mlabel">Bereidingsstappen</div>
+          <div className="mtext">{stappen===null?"Laden…":stappen}</div></div>
         <button className="mclose" onClick={onClose}>Sluiten</button>
       </div>
     </div>;

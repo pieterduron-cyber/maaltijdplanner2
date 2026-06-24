@@ -151,6 +151,24 @@ export const handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
+    // ── Bereidingsstappen ophalen ──
+    if (action === "getBereidingsstappen") {
+      const { id } = payload;
+      const data = await notionRequest(`/blocks/${id}/children?page_size=100`);
+      if (data.object === "error") return { statusCode: 200, headers, body: JSON.stringify({ error: data.message }) };
+      const tekst = (data.results || []).map(block => {
+        const type = block.type;
+        const richText = block[type]?.rich_text || [];
+        const text = richText.map(r => r.plain_text).join("");
+        if (!text) return "";
+        if (type === "numbered_list_item") return `${text}`;
+        if (type === "bulleted_list_item") return `- ${text}`;
+        if (type === "heading_1" || type === "heading_2" || type === "heading_3") return `\n**${text}**`;
+        return text;
+      }).filter(Boolean).join("\n");
+      return { statusCode: 200, headers, body: JSON.stringify({ tekst }) };
+    }
+
     return { statusCode: 400, headers, body: JSON.stringify({ error: "Unknown action" }) };
 
   } catch (err) {
