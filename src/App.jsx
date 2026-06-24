@@ -170,7 +170,7 @@ export default function App() {
 
   const loadShopping = useCallback(async () => {
     setB("s",true);
-    const d = await notion("getShopping", { week });
+    const d = await notion("getShopping", {});
     if (Array.isArray(d)) setShopping(d);
     setB("s",false);
   }, [week]);
@@ -236,7 +236,7 @@ export default function App() {
   const voegShopToe = async (txt) => {
     if(!txt.trim()) return;
     setB("si",true);
-    const r = await notion("addShopping", { product: txt.trim(), hoeveelheid:"", week, volgorde: shopping.length });
+    const r = await notion("addShopping", { product: txt.trim(), hoeveelheid:"", volgorde: shopping.length });
     setB("si",false);
     if(r?.success){ showToast(`"${txt}" toegevoegd`); loadShopping(); }
   };

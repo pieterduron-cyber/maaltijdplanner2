@@ -28,7 +28,7 @@ export const handler = async (event) => {
   try {
     const { action, payload } = JSON.parse(event.body || "{}");
 
-    // ── Debug: token check ──
+    // ── Debug ──
     if (action === "debug") {
       const tokenPreview = NOTION_TOKEN ? NOTION_TOKEN.slice(0,10) + "..." : "MISSING";
       const data = await notionRequest("/users/me");
@@ -104,33 +104,36 @@ export const handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
-    // ── Shopping ophalen ──
+    // ── Shopping ophalen — geen weekfilter ──
     if (action === "getShopping") {
       const dbId = "79ca6249b21e43af8bee9b70c2227070";
-      const { week } = payload;
-      const data = await notionRequest(`/databases/${dbId}/query`, "POST", {
-        page_size: 100,
-        filter: { property: "Week", rich_text: { equals: week } }
-      });
-      if (data.object === "error") return { statusCode: 200, headers, body: JSON.stringify({ error: data.message }) };
-      const items = (data.results || []).map(p => ({
+      let results = [], cursor = undefined, hasMore = true;
+      while (hasMore) {
+        const body = { page_size: 100 };
+        if (cursor) body.start_cursor = cursor;
+        const data = await notionRequest(`/databases/${dbId}/query`, "POST", body);
+        if (data.object === "error") return { statusCode: 200, headers, body: JSON.stringify({ error: data.message }) };
+        results = results.concat(data.results || []);
+        hasMore = data.has_more;
+        cursor = data.next_cursor;
+      }
+      const items = results.map((p, i) => ({
         id: p.id,
         product: p.properties?.Product?.title?.[0]?.plain_text || "",
         hoeveelheid: p.properties?.Hoeveelheid?.rich_text?.map(r => r.plain_text).join("") || "",
-        volgorde: parseInt(p.properties?.Notities?.rich_text?.map(r => r.plain_text).join("").replace("volgorde:", "") || "999"),
+        volgorde: parseInt(p.properties?.Notities?.rich_text?.map(r => r.plain_text).join("").replace("volgorde:", "") || i),
       })).filter(i => i.product).sort((a, b) => a.volgorde - b.volgorde);
       return { statusCode: 200, headers, body: JSON.stringify(items) };
     }
 
-    // ── Shopping item toevoegen ──
+    // ── Shopping item toevoegen — geen week ──
     if (action === "addShopping") {
-      const { product, hoeveelheid, week, volgorde } = payload;
+      const { product, hoeveelheid, volgorde } = payload;
       const data = await notionRequest("/pages", "POST", {
         parent: { database_id: "79ca6249b21e43af8bee9b70c2227070" },
         properties: {
           Product: { title: [{ text: { content: product } }] },
           Hoeveelheid: { rich_text: [{ text: { content: hoeveelheid || "" } }] },
-          Week: { rich_text: [{ text: { content: week } }] },
           Notities: { rich_text: [{ text: { content: `volgorde:${volgorde || 999}` } }] },
         }
       });
