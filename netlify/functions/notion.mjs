@@ -28,6 +28,13 @@ export const handler = async (event) => {
   try {
     const { action, payload } = JSON.parse(event.body || "{}");
 
+    // ── Debug: token check ──
+    if (action === "debug") {
+      const tokenPreview = NOTION_TOKEN ? NOTION_TOKEN.slice(0,10) + "..." : "MISSING";
+      const data = await notionRequest("/users/me");
+      return { statusCode: 200, headers, body: JSON.stringify({ tokenPreview, notionResponse: data }) };
+    }
+
     // ── Gerechten ophalen ──
     if (action === "getGerechten") {
       const dbId = "347bd44f-9a83-4e9b-8a36-58a312dae0d0";
@@ -36,6 +43,7 @@ export const handler = async (event) => {
         const body = { page_size: 100, sorts: [{ property: "Naam", direction: "ascending" }] };
         if (cursor) body.start_cursor = cursor;
         const data = await notionRequest(`/databases/${dbId}/query`, "POST", body);
+        if (data.object === "error") return { statusCode: 200, headers, body: JSON.stringify({ error: data.message, code: data.code }) };
         results = results.concat(data.results || []);
         hasMore = data.has_more;
         cursor = data.next_cursor;
@@ -58,6 +66,7 @@ export const handler = async (event) => {
         page_size: 100,
         filter: { property: "Week", rich_text: { equals: week } }
       });
+      if (data.object === "error") return { statusCode: 200, headers, body: JSON.stringify({ error: data.message }) };
       const result = {};
       for (const p of data.results || []) {
         const dag = p.properties?.Datum?.title?.[0]?.plain_text || "";
@@ -85,7 +94,7 @@ export const handler = async (event) => {
           Notities: { rich_text: [{ text: { content: `${personen} personen` } }] },
         }
       });
-      return { statusCode: 200, headers, body: JSON.stringify({ success: true, id: data.id }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ success: !data.object?.includes("error"), id: data.id }) };
     }
 
     // ── Dagmenu item verwijderen ──
@@ -103,6 +112,7 @@ export const handler = async (event) => {
         page_size: 100,
         filter: { property: "Week", rich_text: { equals: week } }
       });
+      if (data.object === "error") return { statusCode: 200, headers, body: JSON.stringify({ error: data.message }) };
       const items = (data.results || []).map(p => ({
         id: p.id,
         product: p.properties?.Product?.title?.[0]?.plain_text || "",
