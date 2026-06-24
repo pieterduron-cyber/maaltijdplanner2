@@ -64,6 +64,7 @@ const css = `
   .bc{background:#7c6af720;color:${T.accent2};}
   .bt{background:#4ade8020;color:${T.green};}
   .bs{background:#fbbf2420;color:#fbbf24;}
+  .bv{background:#94a3b820;color:#94a3b8;}
   .gcard-actions{margin-left:auto;display:flex;gap:4px;}
   .icon-btn{background:none;border:none;color:${T.muted};cursor:pointer;padding:5px;border-radius:7px;display:flex;align-items:center;transition:color 0.15s;}
   .icon-btn:hover{color:${T.text};}
@@ -77,6 +78,7 @@ const css = `
   .wday-add svg{width:13px;height:13px;}
   .gerecht-rij{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid ${T.border};}
   .gerecht-rij-naam{font-size:14px;font-weight:500;flex:1;}
+  .gerecht-rij-naam.vrij{color:${T.muted};font-style:italic;}
   .gerecht-rij-pers{font-size:11px;color:${T.muted};white-space:nowrap;}
   .rij-del{background:none;border:none;color:${T.border};cursor:pointer;padding:3px;border-radius:5px;display:flex;align-items:center;flex-shrink:0;transition:color 0.15s;}
   .rij-del:hover{color:${T.red};}
@@ -125,6 +127,7 @@ const css = `
   .toast.err{background:${T.red};color:#fff;}
   @keyframes fadein{from{opacity:0;transform:translateX(-50%) translateY(8px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
   .shop-hint{font-size:11px;color:${T.muted};margin-bottom:12px;}
+
 `;
 
 const Ico = {
@@ -181,10 +184,21 @@ export default function App() {
 
   const voegToe = async (gerecht, dag, personen) => {
     setB("add",true);
-    const r = await notion("addDagmenu", { dag, gerecht: gerecht.naam, week, personen });
+    const r = await notion("addDagmenu", { dag, gerecht: gerecht.naam, week, personen, vrij: false });
     setB("add",false);
     if(r?.success){
       showToast(`${gerecht.naam} → ${dag}`);
+      setModal(null);
+      loadDagmenu();
+    } else showToast("Fout bij toevoegen",true);
+  };
+
+  const voegVrijToe = async (naam, dag) => {
+    setB("add",true);
+    const r = await notion("addDagmenu", { dag, gerecht: naam, week, personen: 0, vrij: true });
+    setB("add",false);
+    if(r?.success){
+      showToast(`${naam} → ${dag}`);
       setModal(null);
       loadDagmenu();
     } else showToast("Fout bij toevoegen",true);
@@ -206,18 +220,18 @@ export default function App() {
     const weekGerechten = [];
     for (const dag of DAGEN) {
       for (const item of (dagmenu[dag]||[])) {
+        if (item.vrij) continue; // vrije items overslaan
         const g = gerechten.find(g=>g.naam===item.gerecht);
         if (g?.ingredienten) weekGerechten.push({ naam:g.naam, ingredienten:g.ingredienten, personen:item.personen||4 });
       }
     }
 
-    if (!weekGerechten.length) { showToast("Geen gerechten in weekmenu",true); setB("gen",false); return; }
+    if (!weekGerechten.length) { showToast("Geen gerechten met ingrediënten",true); setB("gen",false); return; }
 
     const parsed = await parseIngredients(weekGerechten);
 
     if (!Array.isArray(parsed)) { showToast("Fout bij verwerken",true); setB("gen",false); return; }
 
-    // Schrijf naar Notion
     const currentMax = shopping.length;
     for (let i=0; i<parsed.length; i++) {
       await notion("addShopping", {
@@ -327,9 +341,12 @@ export default function App() {
                           const g = gerechten.find(x=>x.naam===item.gerecht);
                           return (
                           <div key={item.id} className="gerecht-rij">
-                            <span className="gerecht-rij-naam">{item.gerecht}</span>
-                            <span className="gerecht-rij-pers">👥 {item.personen}</span>
-                            {g && <button className="icon-btn" onClick={()=>setModal({type:"detail",gerecht:g})}>{Ico.eye}</button>}
+                            <span className={`gerecht-rij-naam ${item.vrij?"vrij":""}`}>{item.gerecht}</span>
+                            {item.vrij
+                              ? <span className="badge bv">vrij</span>
+                              : <span className="gerecht-rij-pers">👥 {item.personen}</span>
+                            }
+                            {g && !item.vrij && <button className="icon-btn" onClick={()=>setModal({type:"detail",gerecht:g})}>{Ico.eye}</button>}
                             <button className="rij-del" onClick={()=>verwijderDagItem(dag,item.id)}>{Ico.del}</button>
                           </div>
                           );
@@ -354,7 +371,7 @@ export default function App() {
           )}
         </div>
 
-        {modal&&<ModalView modal={modal} gerechten={gerechten} onClose={()=>setModal(null)} onVoegToe={voegToe} busy={busy}/>}
+        {modal&&<ModalView modal={modal} gerechten={gerechten} onClose={()=>setModal(null)} onVoegToe={voegToe} onVoegVrijToe={voegVrijToe} busy={busy}/>}
         {toast&&<div className={`toast ${toast.err?"err":""}`}>{toast.msg}</div>}
       </div>
     </>
@@ -414,81 +431,141 @@ function ShoppingTab({shopping, onDelete, onAdd, onReorder, addBusy}) {
   </>;
 }
 
-function ModalView({modal,gerechten,onClose,onVoegToe,busy}) {
-  const [selDag,setSelDag]=useState(modal.dag||null);
-  const [pers,setPers]=useState(4);
-  const [zoek,setZoek]=useState("");
-  const [gekozen,setGekozen]=useState(modal.gerecht||null);
-
-  if(modal.type==="detail"){
-    const g=modal.gerecht;
-    const [stappen, setStappen] = useState(null);
-    useEffect(()=>{
-      notion("getBereidingsstappen",{id:g.id}).then(d=>setStappen(d.tekst||"Niet beschikbaar."));
-    },[g.id]);
-    return <div className="overlay" onClick={onClose}>
+// Detail modal als aparte component om hook violations te vermijden
+function DetailModal({gerecht, onClose}) {
+  const [stappen, setStappen] = useState(null);
+  useEffect(()=>{
+    notion("getBereidingsstappen",{id:gerecht.id}).then(d=>setStappen(d.tekst||"Niet beschikbaar."));
+  },[gerecht.id]);
+  return (
+    <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <div className="mhandle"/>
-        <div className="mtitle">{g.naam}</div>
+        <div className="mtitle">{gerecht.naam}</div>
         <div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap"}}>
-          {g.categorie&&<span className="badge bc">{g.categorie}</span>}
-          {g.kooktijd&&<span className="badge bt">{g.kooktijd}</span>}
+          {gerecht.categorie&&<span className="badge bc">{gerecht.categorie}</span>}
+          {gerecht.kooktijd&&<span className="badge bt">{gerecht.kooktijd}</span>}
         </div>
         <div className="msec"><div className="mlabel">Ingrediënten</div>
-          <div className="mtext">{g.ingredienten||"Niet beschikbaar."}</div></div>
+          <div className="mtext">{gerecht.ingredienten||"Niet beschikbaar."}</div></div>
         <div className="msec"><div className="mlabel">Bereidingsstappen</div>
           <div className="mtext">{stappen===null?"Laden…":stappen}</div></div>
         <button className="mclose" onClick={onClose}>Sluiten</button>
       </div>
-    </div>;
+    </div>
+  );
+}
+
+function ModalView({modal, gerechten, onClose, onVoegToe, onVoegVrijToe, busy}) {
+  const [zoek, setZoek] = useState("");
+  const [gekozen, setGekozen] = useState(modal.gerecht||null);
+  const [selDag, setSelDag] = useState(modal.dag||null);
+  const [pers, setPers] = useState(4);
+
+  if (modal.type==="detail") {
+    return <DetailModal gerecht={modal.gerecht} onClose={onClose}/>;
   }
 
-  if(modal.type==="toevoegen"||modal.type==="toevoegen_dag"){
-    const gef=gerechten.filter(g=>!zoek||g.naam?.toLowerCase().includes(zoek.toLowerCase()));
-    return <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={e=>e.stopPropagation()}>
-        <div className="mhandle"/>
-        <div className="mtitle">{gekozen?gekozen.naam:"Kies een gerecht"}</div>
-        {!gekozen&&<>
-          <input className="manual-in" style={{marginBottom:10,width:"100%"}} autoFocus
-            placeholder="Zoek gerecht…" value={zoek} onChange={e=>setZoek(e.target.value)}/>
-          <div style={{maxHeight:220,overflowY:"auto",marginBottom:10}}>
-            {gef.slice(0,20).map(g=>(
-              <div key={g.id} className="gcard" style={{marginBottom:6}} onClick={()=>setGekozen(g)}>
-                <div className="gcard-name">{g.naam}</div>
-                <div className="gcard-meta">
-                  {g.categorie&&<span className="badge bc">{g.categorie}</span>}
-                  {g.kooktijd&&<span className={`badge ${g.kooktijd.includes("20")?"bs":"bt"}`}>{g.kooktijd}</span>}
+  if (modal.type==="toevoegen" || modal.type==="toevoegen_dag") {
+    const zoekTerm = zoek.trim();
+    const gef = gerechten.filter(g=>!zoekTerm||g.naam?.toLowerCase().includes(zoekTerm.toLowerCase()));
+    const exactMatch = gerechten.some(g=>g.naam?.toLowerCase()===zoekTerm.toLowerCase());
+    const toonVrijOptie = zoekTerm.length > 0 && !exactMatch;
+
+    return (
+      <div className="overlay" onClick={onClose}>
+        <div className="modal" onClick={e=>e.stopPropagation()}>
+          <div className="mhandle"/>
+
+          {!gekozen ? <>
+            <div className="mtitle">Wat eten jullie?</div>
+            <div className="search-wrap" style={{marginBottom:10}}>
+              <span className="search-icon">{Ico.srch}</span>
+              <input
+                className="search-input"
+                autoFocus
+                placeholder="Zoek of typ zelf…"
+                value={zoek}
+                onChange={e=>setZoek(e.target.value)}
+              />
+            </div>
+
+            <div style={{maxHeight:260,overflowY:"auto",marginBottom:8}}>
+              {gef.slice(0,15).map(g=>(
+                <div key={g.id} className="gcard" style={{marginBottom:6}} onClick={()=>setGekozen({...g, vrij:false})}>
+                  <div className="gcard-name">{g.naam}</div>
+                  <div className="gcard-meta">
+                    {g.categorie&&<span className="badge bc">{g.categorie}</span>}
+                    {g.kooktijd&&<span className={`badge ${g.kooktijd.includes("20")?"bs":"bt"}`}>{g.kooktijd}</span>}
+                  </div>
+                </div>
+              ))}
+
+              {toonVrijOptie && (
+                <div
+                  className="gcard"
+                  style={{marginBottom:6, borderStyle:"dashed", borderColor:T.muted, cursor:"pointer"}}
+                  onClick={()=>setGekozen({naam:zoekTerm, vrij:true})}
+                >
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{color:T.muted}}>{Ico.plus}</span>
+                    <div>
+                      <div className="gcard-name" style={{color:T.text}}>"{zoekTerm}"</div>
+                      <div style={{fontSize:11,color:T.muted,marginTop:2}}>toevoegen als vrij item — geen ingrediënten</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {gef.length===0 && !toonVrijOptie && (
+                <div className="empty" style={{padding:"20px 0"}}>Typ om te zoeken of een vrij item toe te voegen</div>
+              )}
+            </div>
+          </> : <>
+            <div className="mtitle" style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{flex:1}}>{gekozen.naam}</span>
+              <button style={{background:"none",border:"none",color:T.muted,fontSize:12,cursor:"pointer",flexShrink:0}} onClick={()=>setGekozen(null)}>
+                ← wijzig
+              </button>
+            </div>
+
+            {gekozen.vrij && (
+              <div style={{fontSize:12,color:T.muted,marginBottom:14,background:T.card,padding:"7px 10px",borderRadius:7}}>
+                Vrij item — verschijnt in weekmenu maar niet in winkellijst
+              </div>
+            )}
+
+            <div className="msec"><div className="mlabel">Dag</div>
+              <div className="dag-grid">
+                {DAGEN.map(d=>(
+                  <button key={d} className={`dag-opt ${selDag===d?"sel":""}`} onClick={()=>setSelDag(d)}>
+                    {d.slice(0,2)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {!gekozen.vrij && (
+              <div className="msec"><div className="mlabel">Personen</div>
+                <div className="pers-row">
+                  {[1,2,3,4,5].map(n=>(
+                    <button key={n} className={`pers-btn ${pers===n?"sel":""}`} onClick={()=>setPers(n)}>{n}</button>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </>}
-        {gekozen&&<>
-          <div className="msec"><div className="mlabel">Dag</div>
-            <div className="dag-grid">
-              {DAGEN.map(d=>(
-                <button key={d} className={`dag-opt ${selDag===d?"sel":""}`} onClick={()=>setSelDag(d)}>
-                  {d.slice(0,2)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="msec"><div className="mlabel">Personen</div>
-            <div className="pers-row">
-              {[1,2,3,4,5].map(n=>(
-                <button key={n} className={`pers-btn ${pers===n?"sel":""}`} onClick={()=>setPers(n)}>{n}</button>
-              ))}
-            </div>
-          </div>
-          <button className="pbtn" style={{width:"100%",padding:"13px"}}
-            disabled={!selDag||busy.add} onClick={()=>onVoegToe(gekozen,selDag,pers)}>
-            {busy.add?"Bezig…":"Toevoegen aan weekmenu"}
-          </button>
-        </>}
-        <button className="mclose" onClick={onClose}>Annuleren</button>
+            )}
+
+            <button className="pbtn" style={{width:"100%",padding:"13px"}}
+              disabled={!selDag||busy.add}
+              onClick={()=>gekozen.vrij ? onVoegVrijToe(gekozen.naam,selDag) : onVoegToe(gekozen,selDag,pers)}>
+              {busy.add?"Bezig…":"Toevoegen aan weekmenu"}
+            </button>
+          </>}
+
+          <button className="mclose" onClick={onClose}>Annuleren</button>
+        </div>
       </div>
-    </div>;
+    );
   }
   return null;
 }

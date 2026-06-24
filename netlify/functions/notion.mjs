@@ -72,10 +72,11 @@ export const handler = async (event) => {
         const dag = p.properties?.Datum?.title?.[0]?.plain_text || "";
         const gerecht = p.properties?.Gerecht?.rich_text?.map(r => r.plain_text).join("") || "";
         const notities = p.properties?.Notities?.rich_text?.map(r => r.plain_text).join("") || "";
-        const personen = parseInt(notities) || 4;
+        const vrij = notities === "vrij";
+        const personen = vrij ? 0 : (parseInt(notities) || 4);
         if (dag) {
           if (!result[dag]) result[dag] = [];
-          result[dag].push({ id: p.id, gerecht, personen });
+          result[dag].push({ id: p.id, gerecht, personen, vrij });
         }
       }
       return { statusCode: 200, headers, body: JSON.stringify(result) };
@@ -83,7 +84,9 @@ export const handler = async (event) => {
 
     // ── Dagmenu item toevoegen ──
     if (action === "addDagmenu") {
-      const { dag, gerecht, week, personen } = payload;
+      const { dag, gerecht, week, personen, vrij } = payload;
+      // Notities veld: "vrij" of "{personen} personen"
+      const notitie = vrij ? "vrij" : `${personen} personen`;
       const data = await notionRequest("/pages", "POST", {
         parent: { database_id: "3ad6b3be60314267950a1540a90991c9" },
         properties: {
@@ -91,7 +94,7 @@ export const handler = async (event) => {
           Gerecht: { rich_text: [{ text: { content: gerecht } }] },
           Week: { rich_text: [{ text: { content: week } }] },
           Status: { select: { name: "Gepland" } },
-          Notities: { rich_text: [{ text: { content: `${personen} personen` } }] },
+          Notities: { rich_text: [{ text: { content: notitie } }] },
         }
       });
       return { statusCode: 200, headers, body: JSON.stringify({ success: !data.object?.includes("error"), id: data.id }) };
