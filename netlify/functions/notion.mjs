@@ -61,10 +61,8 @@ export const handler = async (event) => {
     // ── Dagmenu ophalen ──
     if (action === "getDagmenu") {
       const dbId = "3ad6b3be60314267950a1540a90991c9";
-      const { week } = payload;
       const data = await notionRequest(`/databases/${dbId}/query`, "POST", {
         page_size: 100,
-        filter: { property: "Week", rich_text: { equals: week } }
       });
       if (data.object === "error") return { statusCode: 200, headers, body: JSON.stringify({ error: data.message }) };
       const result = {};
@@ -84,15 +82,13 @@ export const handler = async (event) => {
 
     // ── Dagmenu item toevoegen ──
     if (action === "addDagmenu") {
-      const { dag, gerecht, week, personen, vrij } = payload;
-      // Notities veld: "vrij" of "{personen} personen"
+      const { dag, gerecht, personen, vrij } = payload;
       const notitie = vrij ? "vrij" : `${personen} personen`;
       const data = await notionRequest("/pages", "POST", {
         parent: { database_id: "3ad6b3be60314267950a1540a90991c9" },
         properties: {
           Datum: { title: [{ text: { content: dag } }] },
           Gerecht: { rich_text: [{ text: { content: gerecht } }] },
-          Week: { rich_text: [{ text: { content: week } }] },
           Status: { select: { name: "Gepland" } },
           Notities: { rich_text: [{ text: { content: notitie } }] },
         }

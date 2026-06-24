@@ -2,13 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const DAGEN = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
 
-function getCurrentWeekLabel() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 1);
-  const week = Math.ceil(((now - start) / 86400000 + start.getDay() + 1) / 7);
-  return `Week ${week} – ${now.getFullYear()}`;
-}
-
 async function notion(action, payload = {}) {
   const res = await fetch("/api/notion", {
     method: "POST",
@@ -42,7 +35,6 @@ const css = `
   .header-top{display:flex;align-items:center;justify-content:space-between;}
   .logo{font-size:20px;font-weight:700;letter-spacing:-0.5px;}
   .logo span{color:${T.accent2};}
-  .week-badge{font-size:11px;color:${T.muted};background:${T.card};padding:3px 10px;border-radius:20px;margin-top:5px;display:inline-block;}
   .nav{display:flex;background:${T.surface};border-bottom:1px solid ${T.border};}
   .nav-btn{flex:1;padding:11px 4px;border:none;background:none;color:${T.muted};font-size:11px;font-weight:500;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;text-transform:uppercase;letter-spacing:0.3px;border-bottom:2px solid transparent;transition:color 0.15s;}
   .nav-btn.active{color:${T.accent2};border-bottom-color:${T.accent2};}
@@ -80,9 +72,9 @@ const css = `
   .gerecht-rij-naam{font-size:14px;font-weight:500;flex:1;}
   .gerecht-rij-naam.vrij{color:${T.muted};font-style:italic;}
   .gerecht-rij-pers{font-size:11px;color:${T.muted};white-space:nowrap;}
-  .rij-del{background:none;border:none;color:${T.border};cursor:pointer;padding:3px;border-radius:5px;display:flex;align-items:center;flex-shrink:0;transition:color 0.15s;}
-  .rij-del:hover{color:${T.red};}
-  .rij-del svg{width:14px;height:14px;}
+  .rij-del{background:none;border:none;color:#f8717160;cursor:pointer;padding:6px;border-radius:7px;display:flex;align-items:center;flex-shrink:0;transition:all 0.15s;}
+  .rij-del:hover{color:${T.red};background:#f8717115;}
+  .rij-del svg{width:18px;height:18px;}
   .add-dag{display:flex;align-items:center;gap:6px;width:100%;background:none;border:1px dashed ${T.border};border-radius:8px;padding:8px 12px;color:${T.muted};font-size:13px;cursor:pointer;transition:all 0.15s;}
   .add-dag:hover{border-color:${T.accent};color:${T.accent2};}
   .add-dag svg{width:15px;height:15px;}
@@ -96,9 +88,9 @@ const css = `
   .drag-handle svg{width:16px;height:16px;}
   .shop-prod{font-size:14px;font-weight:500;flex:1;}
   .shop-qty{font-size:12px;color:${T.muted};white-space:nowrap;}
-  .shop-del{background:none;border:none;color:${T.border};cursor:pointer;padding:3px;display:flex;align-items:center;flex-shrink:0;transition:color 0.15s;}
-  .shop-del:hover{color:${T.red};}
-  .shop-del svg{width:14px;height:14px;}
+  .shop-del{background:none;border:none;color:#f8717160;cursor:pointer;padding:6px;border-radius:7px;display:flex;align-items:center;flex-shrink:0;transition:all 0.15s;}
+  .shop-del:hover{color:${T.red};background:#f8717115;}
+  .shop-del svg{width:18px;height:18px;}
   .manual-row{display:flex;gap:8px;margin-bottom:6px;}
   .manual-in{flex:1;background:${T.card};border:1px solid ${T.border};border-radius:10px;padding:10px 14px;color:${T.text};font-size:14px;outline:none;}
   .manual-in:focus{border-color:${T.accent};}
@@ -127,7 +119,6 @@ const css = `
   .toast.err{background:${T.red};color:#fff;}
   @keyframes fadein{from{opacity:0;transform:translateX(-50%) translateY(8px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
   .shop-hint{font-size:11px;color:${T.muted};margin-bottom:12px;}
-
 `;
 
 const Ico = {
@@ -152,7 +143,6 @@ export default function App() {
   const [cat, setCat] = useState("Alle");
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null);
-  const week = getCurrentWeekLabel();
 
   const showToast = (msg, err=false) => { setToast({msg,err}); setTimeout(()=>setToast(null),2500); };
   const setB = (k,v) => setBusy(p=>({...p,[k]:v}));
@@ -166,17 +156,17 @@ export default function App() {
 
   const loadDagmenu = useCallback(async () => {
     setB("d",true);
-    const d = await notion("getDagmenu", { week });
+    const d = await notion("getDagmenu", {});
     if (d && typeof d === "object") setDagmenu(d);
     setB("d",false);
-  }, [week]);
+  }, []);
 
   const loadShopping = useCallback(async () => {
     setB("s",true);
     const d = await notion("getShopping", {});
     if (Array.isArray(d)) setShopping(d);
     setB("s",false);
-  }, [week]);
+  }, []);
 
   useEffect(()=>{ loadGerechten(); },[loadGerechten]);
   useEffect(()=>{ if(tab==="week") loadDagmenu(); },[tab,loadDagmenu]);
@@ -184,7 +174,7 @@ export default function App() {
 
   const voegToe = async (gerecht, dag, personen) => {
     setB("add",true);
-    const r = await notion("addDagmenu", { dag, gerecht: gerecht.naam, week, personen, vrij: false });
+    const r = await notion("addDagmenu", { dag, gerecht: gerecht.naam, personen, vrij: false });
     setB("add",false);
     if(r?.success){
       showToast(`${gerecht.naam} → ${dag}`);
@@ -195,7 +185,7 @@ export default function App() {
 
   const voegVrijToe = async (naam, dag) => {
     setB("add",true);
-    const r = await notion("addDagmenu", { dag, gerecht: naam, week, personen: 0, vrij: true });
+    const r = await notion("addDagmenu", { dag, gerecht: naam, personen: 0, vrij: true });
     setB("add",false);
     if(r?.success){
       showToast(`${naam} → ${dag}`);
@@ -220,7 +210,7 @@ export default function App() {
     const weekGerechten = [];
     for (const dag of DAGEN) {
       for (const item of (dagmenu[dag]||[])) {
-        if (item.vrij) continue; // vrije items overslaan
+        if (item.vrij) continue;
         const g = gerechten.find(g=>g.naam===item.gerecht);
         if (g?.ingredienten) weekGerechten.push({ naam:g.naam, ingredienten:g.ingredienten, personen:item.personen||4 });
       }
@@ -229,7 +219,6 @@ export default function App() {
     if (!weekGerechten.length) { showToast("Geen gerechten met ingrediënten",true); setB("gen",false); return; }
 
     const parsed = await parseIngredients(weekGerechten);
-
     if (!Array.isArray(parsed)) { showToast("Fout bij verwerken",true); setB("gen",false); return; }
 
     const currentMax = shopping.length;
@@ -237,7 +226,6 @@ export default function App() {
       await notion("addShopping", {
         product: parsed[i].product,
         hoeveelheid: parsed[i].hoeveelheid || "",
-        week,
         volgorde: currentMax + i,
       });
     }
@@ -283,7 +271,6 @@ export default function App() {
             <div className="logo">maal<span>tijd</span></div>
             <span style={{fontSize:22}}>🍽️</span>
           </div>
-          <div className="week-badge">{week}</div>
         </div>
 
         <div className="nav">
@@ -340,15 +327,15 @@ export default function App() {
                         : items.map(item=>{
                           const g = gerechten.find(x=>x.naam===item.gerecht);
                           return (
-                          <div key={item.id} className="gerecht-rij">
-                            <span className={`gerecht-rij-naam ${item.vrij?"vrij":""}`}>{item.gerecht}</span>
-                            {item.vrij
-                              ? <span className="badge bv">vrij</span>
-                              : <span className="gerecht-rij-pers">👥 {item.personen}</span>
-                            }
-                            {g && !item.vrij && <button className="icon-btn" onClick={()=>setModal({type:"detail",gerecht:g})}>{Ico.eye}</button>}
-                            <button className="rij-del" onClick={()=>verwijderDagItem(dag,item.id)}>{Ico.del}</button>
-                          </div>
+                            <div key={item.id} className="gerecht-rij">
+                              <span className={`gerecht-rij-naam ${item.vrij?"vrij":""}`}>{item.gerecht}</span>
+                              {item.vrij
+                                ? <span className="badge bv">vrij</span>
+                                : <span className="gerecht-rij-pers">👥 {item.personen}</span>
+                              }
+                              {g && !item.vrij && <button className="icon-btn" onClick={()=>setModal({type:"detail",gerecht:g})}>{Ico.eye}</button>}
+                              <button className="rij-del" onClick={()=>verwijderDagItem(dag,item.id)}>{Ico.del}</button>
+                            </div>
                           );
                         })
                       }
@@ -431,7 +418,6 @@ function ShoppingTab({shopping, onDelete, onAdd, onReorder, addBusy}) {
   </>;
 }
 
-// Detail modal als aparte component om hook violations te vermijden
 function DetailModal({gerecht, onClose}) {
   const [stappen, setStappen] = useState(null);
   useEffect(()=>{
