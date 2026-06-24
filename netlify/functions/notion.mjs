@@ -121,7 +121,7 @@ export const handler = async (event) => {
         id: p.id,
         product: p.properties?.Product?.title?.[0]?.plain_text || "",
         hoeveelheid: p.properties?.Hoeveelheid?.rich_text?.map(r => r.plain_text).join("") || "",
-        volgorde: parseInt(p.properties?.Notities?.rich_text?.map(r => r.plain_text).join("").replace("volgorde:", "") || i),
+        volgorde: i,
       })).filter(i => i.product).sort((a, b) => a.volgorde - b.volgorde);
       return { statusCode: 200, headers, body: JSON.stringify(items) };
     }
@@ -134,10 +134,9 @@ export const handler = async (event) => {
         properties: {
           Product: { title: [{ text: { content: product } }] },
           Hoeveelheid: { rich_text: [{ text: { content: hoeveelheid || "" } }] },
-          Notities: { rich_text: [{ text: { content: `volgorde:${volgorde || 999}` } }] },
         }
       });
-      return { statusCode: 200, headers, body: JSON.stringify({ success: true, id: data.id, notionObject: data.object, notionError: data.message }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ success: data.object !== "error", id: data.id, error: data.message }) };
     }
 
     // ── Shopping item verwijderen ──
@@ -149,12 +148,6 @@ export const handler = async (event) => {
 
     // ── Shopping volgorde opslaan ──
     if (action === "updateVolgorde") {
-      const { id, volgorde } = payload;
-      await notionRequest(`/pages/${id}`, "PATCH", {
-        properties: {
-          Notities: { rich_text: [{ text: { content: `volgorde:${volgorde}` } }] }
-        }
-      });
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
