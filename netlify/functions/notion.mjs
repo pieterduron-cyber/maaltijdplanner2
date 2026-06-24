@@ -37,7 +37,7 @@ export const handler = async (event) => {
 
     // ── Gerechten ophalen ──
     if (action === "getGerechten") {
-      const dbId = "347bd44f-9a83-4e9b-8a36-58a312dae0d0";
+      const dbId = "0f430c9c19544cb5b9e796ecdcbba65e";
       let results = [], cursor = undefined, hasMore = true;
       while (hasMore) {
         const body = { page_size: 100, sorts: [{ property: "Naam", direction: "ascending" }] };
@@ -60,7 +60,7 @@ export const handler = async (event) => {
 
     // ── Dagmenu ophalen ──
     if (action === "getDagmenu") {
-      const dbId = "01827e42-0aa1-4194-b6fc-5e25511eef8e";
+      const dbId = "3ad6b3be60314267950a1540a90991c9";
       const { week } = payload;
       const data = await notionRequest(`/databases/${dbId}/query`, "POST", {
         page_size: 100,
@@ -85,7 +85,7 @@ export const handler = async (event) => {
     if (action === "addDagmenu") {
       const { dag, gerecht, week, personen } = payload;
       const data = await notionRequest("/pages", "POST", {
-        parent: { database_id: "01827e42-0aa1-4194-b6fc-5e25511eef8e" },
+        parent: { database_id: "3ad6b3be60314267950a1540a90991c9" },
         properties: {
           Datum: { title: [{ text: { content: dag } }] },
           Gerecht: { rich_text: [{ text: { content: gerecht } }] },
@@ -106,7 +106,7 @@ export const handler = async (event) => {
 
     // ── Shopping ophalen ──
     if (action === "getShopping") {
-      const dbId = "14e77656-8cd0-4947-b41b-72b997d81a27";
+      const dbId = "79ca6249b21e43af8bee9b70c2227070";
       const { week } = payload;
       const data = await notionRequest(`/databases/${dbId}/query`, "POST", {
         page_size: 100,
@@ -126,7 +126,7 @@ export const handler = async (event) => {
     if (action === "addShopping") {
       const { product, hoeveelheid, week, volgorde } = payload;
       const data = await notionRequest("/pages", "POST", {
-        parent: { database_id: "14e77656-8cd0-4947-b41b-72b997d81a27" },
+        parent: { database_id: "79ca6249b21e43af8bee9b70c2227070" },
         properties: {
           Product: { title: [{ text: { content: product } }] },
           Hoeveelheid: { rich_text: [{ text: { content: hoeveelheid || "" } }] },
